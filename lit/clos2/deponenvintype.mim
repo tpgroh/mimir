@@ -1,0 +1,30 @@
+// RUN: %mim -I %S %s -o - | %FileCheck %s
+
+// Two closures with the same dependent type but different environments, used interchangeably at one call site - Requirement 1.
+
+plugin core;
+
+import pipeline;
+
+use core.ops.s.w;
+
+extern fun test (n:Nat, m:Nat) :I32 =
+    use core.ops.n;
+
+    // create two anonymous functions with the same type, both having n free in the type but also having other free var m in their bodies
+    let get1 = fn (x: Nat) : Idx n = return (core.idx 0 n (x + m));
+    let get2 = fn (x: Nat) : Idx n = return (core.idx 0 n (x * m));
+
+    // a function to which we can pass the two functions above
+    let apply = fn (f : Fn Nat → Idx n) : I32 =
+        ret x = f $ 1984;
+        return (core.bitcast I32 x);
+    
+    // first class use of the get functions
+    ret x = apply $ get1;
+    ret y = apply $ get2;
+
+    return (core.wrap.add 0 (x,y));
+
+// every abstract closure must be eliminated by clos2.absclos_elim
+// CHECK-NOT: clos2.anno

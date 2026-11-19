@@ -1,0 +1,21 @@
+// RUN: %mim -I %S %s -o - | %FileCheck %s
+
+// Direct-style `fun`/`ret` sugar: a closure over one captured scalar is returned, then called at a second site.
+
+plugin core;
+
+import pipeline;
+
+use core.ops.s.w;
+
+extern fun make_adder (n : I32) : Fn I32->I32 =
+    let f = fn (x:I32) = return (x + n);
+    return f;
+
+extern fun test(argc: I32): I32 =
+    ret add2 = make_adder $ argc;
+    ret x = add2 $ 0I32;
+    return x;
+
+// every abstract closure must be eliminated by clos2.absclos_elim
+// CHECK-NOT: clos2.anno

@@ -1,0 +1,26 @@
+// RUN: %mim -I %S %s -o - | %FileCheck %s
+
+// Dependent types across an extern boundary: in an argument, in a return type, and in a local continuation whose domain mentions the captured `m`.
+
+plugin core;
+
+import pipeline;
+
+use core.ops.s.w;
+
+// test dependent types in the argument
+extern fun get (m:Nat, x: Idx m) : I32 = return (core.bitcast I32 x);
+
+// also for the return continuation type, TODO: which is currently not allowed for the ret ... $ ... syntax ?
+extern fun get_wr (m:Nat) : Idx m = return (core.idx 0 m 1984);
+
+// just use every of the above functions
+extern fun test(m:Nat): I32 =
+    con k (y: Idx m) =
+        ret x = get $ (m, y);
+        return x;
+
+    get_wr (m, k);
+
+// every abstract closure must be eliminated by clos2.absclos_elim
+// CHECK-NOT: clos2.anno

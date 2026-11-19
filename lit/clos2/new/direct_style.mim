@@ -1,0 +1,18 @@
+// RUN: %mim -I %S/.. %s -o - | %FileCheck %s
+
+// Direct-style `fun` with `ret`: one closure called from two sites, so a single procedure must serve both.
+
+plugin core;
+plugin mem;
+import pipeline;
+
+use core.ops.u.w;
+
+extern fun main (m: mem.M 0, argc: I32, argv: mem.Ptr (mem.Ptr (I8, 0), 0)): [mem.M 0, I32] =
+    fun scaled (y: I32): I32 = return (y * argc);
+    ret a = scaled $ 5I32;
+    ret b = scaled $ a;
+    return (m, b);
+
+// every abstract closure must be eliminated by clos2.absclos_elim
+// CHECK-NOT: clos2.anno

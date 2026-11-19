@@ -4,6 +4,7 @@ set(MIM_PLUGINS
     btensor
     buffer
     clos
+    clos2
     compile
     core
     cps

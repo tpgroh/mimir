@@ -1,0 +1,33 @@
+// RUN: %mim -I %S %s -o - | %FileCheck %s
+
+// Non-escaping `where`-bound basic blocks: a recursive loop whose blocks capture `n`, `acc` and the return continuation.
+
+plugin core;
+plugin mem;
+
+import pipeline;
+
+use core.ops.s.w;
+
+extern fun count (n : I32) : I32 =
+    loop (0I32, 0I32)
+    where
+        con loop (i acc : I32) =
+            let cond = i < n;
+            core.select (cond, body, exit) ()
+            where
+                con body () =
+                    let next = i + 1I32;
+                    let sum = acc + i;
+                    loop (next, sum);
+                con exit () =
+                    return acc;
+            end;
+    end;
+
+extern fun test(argc: I32): I32 =
+    ret x = count $ argc;
+    return x;
+
+// every abstract closure must be eliminated by clos2.absclos_elim
+// CHECK-NOT: clos2.anno

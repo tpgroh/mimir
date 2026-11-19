@@ -1,0 +1,8 @@
+add_mim_plugin(clos2
+    SOURCES
+        clos2.cpp
+        normalizers.cpp
+        phase/hoist_up.cpp
+        phase/absclos_to_sjlj.cpp
+        phase/absclos_elim.cpp
+)
