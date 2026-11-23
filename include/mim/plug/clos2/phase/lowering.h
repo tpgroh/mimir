@@ -2,19 +2,11 @@
 
 #include "mim/phase.h"
 
-#include "mim/plug/clos2/autogen.h"
 #include "mim/plug/clos2/phase/absclos_elim.h"
 #include "mim/plug/clos2/fv.h"
 #include "mim/plug/mem/mem.h"
 
 namespace mim::plug::clos2 {
-
-// TODO: Drop the rewrites to `clos.*` as soon as clos2 is an in-tree plugin and `ll` lowers clos2's setjmp/longjmp annexes itself.
-// TODO: Make the environment parameter of every procedure a void pointer as well.
-//       At the procedure's entry, cast that void pointer to a pointer to the procedure's environment type and load the environment through it.
-// TODO: Allocate every environment at its creation site, so that a closure holds a pointer to its environment.
-//       Until then, the closure casts the environment tuple itself to the void pointer.
-//       This might require absclos_elim to keep annotating the creation sites, as this phase has to find them after the FCC optimizations that run between absclos_elim and this phase.
 
 /// Lowers what is left of clos2 for the ll backend; runs last.
 class Lowering : public RWPhase {

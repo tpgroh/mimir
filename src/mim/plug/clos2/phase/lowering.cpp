@@ -37,11 +37,15 @@ const Def* Lowering::rewrite_procedure(Lam* old_proc) {
     assert(Axm::isa<mem::M>(old_arg->proj(r, 0)->type()) && "the first argument to a procedure should have been mem::M");
     auto [m, env] = w.call<mem::load>(Defs{new_proc->var(n, k+1), env_ptr})->projs<2>();
 
-    self_clos_[old_clos] = new_proc->var(n, k); // for self recursion
+    auto rest = mem::mut_con(w);
+    self_clos_[old_clos] = w.tuple({new_proc, ptr});
     map(old_clos, w.tuple({new_proc, env}));
     map(old_arg, w.tuple(DefVec{r, [&](size_t j){ return j == 0 ? m : new_proc->var(n, k + j +1); }}));
 
-    new_proc->set(rewrite(old_proc->filter()), rewrite(old_proc->body()));
+    auto _ = fe::Restore(curr_mem_, m);
+    auto __ = enter(old_proc);
+    rest->set(true, rewrite(old_proc->body()));
+    new_proc->set(rewrite(old_proc->filter()), w.app(rest, curr_mem_));
     pop();
 
     return new_proc;
