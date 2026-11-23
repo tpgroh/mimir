@@ -37,7 +37,7 @@ Lam* AbsClosElim::rewrite_procedure(Lam* old_proc) {
     dom->var(2, 0)->set("clos");
     // this map is the reason for the pop();push(); below
     if (auto v = old_proc->has_var()) map(v, dom->var(2, 0)->proj(2, 1));
-    dom->set(1, rewrite(old_lam->dom()));
+    dom->set(1, conv_dom(old_lam->type()));
     dom->var(2, 1)->set("arg");
     pop();
 

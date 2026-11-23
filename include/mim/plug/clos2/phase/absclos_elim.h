@@ -35,6 +35,18 @@ inline const Sigma* isa_closure_type(const Def* def) {
     return nullptr;
 }
 
+/// The argument type of a procedure of type @p procedure_pi, with @p env substituted for its environment.
+inline const Def* procedure_arg_type(const Pi* procedure_pi, const Def* env) {
+    auto& w  = env->world();
+    auto dom = procedure_pi->dom()->isa_mut<Sigma>();
+    auto var = dom ? dom->has_var() : nullptr;
+    if (!var) return procedure_pi->dom(2, 1);
+
+    // only the environment is substituted, the closure's code and the argument stay as they are
+    auto clos = var->proj(2, 0);
+    return w.reduce(var, w.tuple({w.tuple({clos->proj(2, 0), env}), var->proj(2, 1)}), 1);
+}
+
 inline const Def* closure_pack(const Def* procedure, const Def* environment, const Def* clos_t) {
     auto& w       = procedure->world();
     w.log().d("pack {} with {}", procedure, environment);
@@ -49,7 +61,18 @@ inline const Def* closure_pack(const Def* procedure, const Def* environment, con
         "this procedure {} does not accept the passed environment {}:{} (coerce checked against {}",
         procedure, environment, environment->type(), e).bail();
 
+    assert(isa_closure_type(clos_t) && "closures must be packed into a closure type");
     auto [code_t, env_t] = clos_t->projs<2>();
+
+    // apart from the first component, the procedure has to agree with the code of the closure type
+    auto code_pi = Pi::isa_cn(code_t);
+    assert(code_pi && code_pi->num_doms() == 2 && "code of a closure type should have arity 2");
+    auto a_clos = code_pi->dom(2, 1);
+    auto a_proc = procedure_arg_type(procedure_pi, env);
+    if (!Check::alpha<Check::T>(a_proc, a_clos))
+        procedure->blame("the argument type {} of procedure {} does not match the argument type {} of closure type {}",
+                         a_proc, procedure, a_clos, clos_t).bail();
+
     w.log().d("casting {}:{} to code_t {}", procedure->type(), procedure->type()->unfold_type(), code_t);
     w.log().d("casting {}:{} to env_t {}", env->type(), env->type()->unfold_type(), env_t);
     return w.tuple({
@@ -59,7 +82,8 @@ inline const Def* closure_pack(const Def* procedure, const Def* environment, con
 }
 
 inline const Def* closure_apply(const Def* clos, const Def* arg) {
-    auto& w          = clos->world();
+    auto& w = clos->world();
+    assert(isa_closure_type(clos->type()) && "only closures can be applied as closures");
     auto [proc, env] = clos->projs<2>(); // this enforces the calling convention, by construction
 
     w.log().d("UP {}", clos);
@@ -67,7 +91,17 @@ inline const Def* closure_apply(const Def* clos, const Def* arg) {
     w.log().d("env {}:{}", env, env->type());
     w.log().d("arg {}:{}", arg, arg->type());
 
-    return w.app(proc, {clos, arg});
+    auto code_pi = Pi::isa_cn(proc->type());
+    assert(code_pi && code_pi->num_doms() == 2 && "code of a closure should have arity 2");
+    auto [self_t, a_clos] = code_pi->doms<2>();
+    if (!Check::alpha<Check::T>(self_t, clos->type()))
+        clos->blame("the type {} of closure {} does not match the self type {} of its code", clos->type(), clos, self_t)
+            .bail();
+    auto a = Check::coerce(a_clos, arg);
+    if (!a)
+        clos->blame("closure {} does not accept argument {}:{}, expected {}", clos, arg, arg->type(), a_clos).bail();
+
+    return w.app(proc, {clos, a});
 }
 }
 
