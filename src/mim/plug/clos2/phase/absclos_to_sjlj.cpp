@@ -51,20 +51,22 @@ const Def* AbsClosSjLj::rewrite_body2setjmp(Lam* old_lam) {
 
 
     // create the return body
-    auto return_body = w.mut_con(w.sigma());
+    auto return_body = mem::mut_con(w);
+    auto ret_m = return_body->var()->set(m0->dbg_key());
     if (skip_ret_pointer)
-        return_body->set(true, w.app(new_lam->ret_var(), new_m));
+        return_body->set(true, w.app(new_lam->ret_var(), ret_m));
     else {
-        auto [ret_new_m, ret_value] = w.call<mem::load>(Defs{new_m, ret_ptr})->projs<2>();
+        auto [ret_new_m, ret_value] = w.call<mem::load>(Defs{ret_m, ret_ptr})->projs<2>();
         auto ret_actual_value = Prod::cat(true, 1, ret_value->num_projs(), w.call<mem::free>(Defs{ret_new_m, ret_ptr}), ret_value);
         return_body->set(true, w.app(new_lam->ret_var(), ret_actual_value));
     }
     
     // create the actual body
-    map(mem::mem_var(old_lam), new_m);
+    auto body = mem::mut_con(w);
+    bind_new(body->var()->isa<Var>());
+    map(mem::mem_var(old_lam), body->var()->set(m0->dbg_key()));
     retcons_[old_lam->ret_var()] = skip_ret_pointer ? jmp_buf : w.tuple(Defs{jmp_buf, ret_ptr});
 
-    auto body = w.mut_con(w.sigma());
     body->set(rewrite(old_lam->filter()), rewrite(old_lam->body()));
 
     // switch on tag
@@ -72,7 +74,7 @@ const Def* AbsClosSjLj::rewrite_body2setjmp(Lam* old_lam) {
     auto swtch = w.select(cond, body, return_body);
 
     // now set stub
-    new_lam->set(rewrite(old_lam->filter()), w.app(swtch, w.tuple()));
+    new_lam->set(rewrite(old_lam->filter()), w.app(swtch, new_m));
 
     pop();
     return new_lam;

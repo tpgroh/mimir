@@ -5,4 +5,5 @@ add_mim_plugin(clos2
         phase/hoist_up.cpp
         phase/absclos_to_sjlj.cpp
         phase/absclos_elim.cpp
+        phase/lowering.cpp
 )
