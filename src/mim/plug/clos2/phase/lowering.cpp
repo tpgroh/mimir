@@ -40,7 +40,7 @@ const Def* Lowering::rewrite_procedure(Lam* old_proc) {
     auto rest = mem::mut_con(w);
     self_clos_[old_clos] = w.tuple({new_proc, ptr});
     map(old_clos, w.tuple({new_proc, env}));
-    map(old_arg, w.tuple(DefVec{r, [&](size_t j){ return j == 0 ? m : new_proc->var(n, k + j +1); }}));
+    map(old_arg, w.tuple(DefVec{r, [&](size_t j){ return j == 0 ? rest->var() : new_proc->var(n, k + j +1); }}));
 
     auto _ = fe::Restore(curr_mem_, m);
     auto __ = enter(old_proc);
