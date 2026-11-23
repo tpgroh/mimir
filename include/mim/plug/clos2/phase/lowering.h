@@ -3,6 +3,7 @@
 #include "mim/phase.h"
 
 #include "mim/plug/clos2/autogen.h"
+#include "mim/plug/clos2/phase/absclos_elim.h"
 #include "mim/plug/clos2/fv.h"
 #include "mim/plug/mem/mem.h"
 
@@ -86,17 +87,74 @@ private:
         return {};
     }
 
+
+    const Def* rewrite_mut_Sigma(Sigma* sigma) final {
+        if (!Closure::isa_closure_type(sigma)) return RWPhase::rewrite_mut_Sigma(sigma);
+        auto& w    = new_world();
+        auto arg_t = Pi::isa_cn(sigma->op(0))->dom(2, 1);
+        return map(sigma, w.sigma({w.cn(lifted_dom(sorted_fvs(arg_t), arg_t)), void_ptr()}));
+    }
+
     const Def* rewrite_imm_Tuple(const Tuple* tuple) final {
         if (auto [proc, env] = isa_packing(tuple); proc) return rewrite_packing(proc, env);
         return RWPhase::rewrite_imm_Tuple(tuple);
     }
 
+
+
+    const Def* rewrite_clos_call(const Def*, const Def*);
+    const Def* rewrite_imm_App(const App* app) final {
+        if (auto [c, a] = isa_clos_call(app); c) return rewrite_clos_call(c, a);
+        return RWPhase::rewrite_imm_App(app);
+    }
+
+    std::pair<const Def*, const Def*> isa_clos_call(const App* app) {
+        if (app->num_args() != 2) return {};
+        auto [c, a] = app->args<2>();
+        if (Closure::isa_closure_type(c->type())) return {c, a};
+        return {};
+    }
+
     const Def* void_ptr() { return new_world().call<mem::Ptr0>(new_world().type_i8()); }
+
+
+    DefVec sorted_fvs(const Def* type) {
+        auto fvset = fvana_.free_vars(type);
+        auto fvs   = DefVec{fvset.begin(), fvset.end()};
+        // TODO: syntax-driven order; procedure and closure type only agree on GID order for at most one lifted var.
+        std::ranges::sort(fvs, GIDLt<const Def*>());
+        return fvs;
+    }
+
+
+    /// [l₀, …, lₖ₋₁, env, a₀, …, aᵣ₋₁] with the fvs and arg_t's own var abstracted.
+    Sigma* lifted_dom(const DefVec& fvs, const Def* arg_t) {
+        auto& w  = new_world();
+        auto k   = fvs.size();
+        auto r   = arg_t->num_projs();
+        auto n   = k + 1 + r;
+        auto dom = w.mut_sigma(w.type_pending(), n);
+
+        push();
+        bind_old(arg_t->has_var());
+        bind_new(dom->var()->isa<Var>());
+        for (size_t i = 0; i < k; ++i) {
+            dom->set(i, rewrite(fvs[i]->type()));
+            map(fvs[i], dom->var(n, i));
+        }
+        dom->set(k, void_ptr());
+        for (size_t j = 0; j < r; ++j) {
+            dom->set(k + 1 + j, rewrite(arg_t->proj(r, j)));
+            if (auto v = arg_t->has_var()) map(v->proj(r, j), dom->var(n, k + 1 + j));
+        }
+        pop();
+        return dom;
+    }
 
 private:
     DefSet procedures_{};
     const Def* curr_mem_ = nullptr;
-    Def2Def self_ptrs_{};
+    Def2Def self_clos_{};
     FVAnalysis fvana_{};
 };
 
